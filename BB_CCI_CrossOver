@@ -1,1 +1,142 @@
 
+ //@version=6
+indicator("BB_CCI_CrossOver - Original EURUSD", overlay=true, max_labels_count=500)
+
+// =====================================
+// PARAMETERS - ORIGINAL DEFAULT VALUES
+// =====================================
+cciPeriod = input.int(21, "CCI Period")
+cciMin = input.float(-80, "CCI Min")
+cciMax = input.float(80, "CCI Max")
+
+emaPeriod = input.int(14, "CCI EMA Period")
+
+bbPeriod = input.int(21, "BB Period")
+bbDeviation = input.float(2.0, "BB Deviation")
+
+pipMax = input.int(10, "Pip Deviation Max")
+pipMin = input.int(10, "Pip Deviation Min")
+
+pipSize = input.float(0.0001, "EURUSD Pip Size")
+
+arrowSize = input.string("Normal", "Arrow Size",
+     options=["Tiny", "Small", "Normal", "Large", "Huge"])
+
+showBB = input.bool(false, "Show Bollinger Bands")
+
+// =====================================
+// CALCULATIONS
+// =====================================
+
+// CCI
+cci = ta.cci(hlc3, cciPeriod)
+
+// EMA of CCI
+cciEMA = ta.ema(cci, emaPeriod)
+
+// ATR
+atr = ta.atr(10)
+
+// Weighted price (source.weighted approximation)
+weightedPrice = (high + low + close * 2) / 4
+
+// Bollinger Bands
+bbBasis = ta.sma(weightedPrice, bbPeriod)
+bbStd = ta.stdev(weightedPrice, bbPeriod)
+
+bbUpper = bbBasis + bbStd * bbDeviation
+bbLower = bbBasis - bbStd * bbDeviation
+
+// Pip distance
+pipMaxDistance = pipMax * pipSize
+pipMinDistance = pipMin * pipSize
+
+// Arrow distance
+arrowDistance = atr * 3 / 8
+
+// =====================================
+// SIGNAL CONDITIONS - ORIGINAL LOGIC
+// =====================================
+
+bool buySignal = false
+bool sellSignal = false
+
+if not na(cci) and not na(cciEMA) and not na(atr) and not na(bbUpper) and not na(bbLower) and not na(high[1]) and not na(low[1])
+
+    // SELL SIGNAL
+    if cci > cciMax
+        if cci < cciEMA
+            if high <= bbUpper
+                if high[1] > high and bbUpper - high <= pipMaxDistance
+                    sellSignal := true
+            else if high[1] > high
+                sellSignal := true
+
+    // BUY SIGNAL
+    if cci < cciMin
+        if cci > cciEMA
+            if low >= bbLower
+                if low[1] < low and low - bbLower <= pipMinDistance
+                    buySignal := true
+            else if low[1] < low
+                buySignal := true
+
+// =====================================
+// ARROW SIZE
+// =====================================
+
+arrowSizeValue = switch arrowSize
+    "Tiny" => size.tiny
+    "Small" => size.small
+    "Normal" => size.normal
+    "Large" => size.large
+    "Huge" => size.huge
+
+
+// =====================================
+// DRAW BUY / SELL BOXES
+// =====================================
+
+if buySignal
+    label.new(
+         bar_index,
+         low - arrowDistance,
+         "▲ BUY",
+         xloc=xloc.bar_index,
+         yloc=yloc.price,
+         style=label.style_label_up,
+         color=color.green,
+         textcolor=color.white,
+         size=size.normal)
+
+if sellSignal
+    label.new(
+         bar_index,
+         high + arrowDistance,
+         "▼ SELL",
+         xloc=xloc.bar_index,
+         yloc=yloc.price,
+         style=label.style_label_down,
+         color=color.red,
+         textcolor=color.white,
+         size=size.normal)
+
+
+// =====================================
+// OPTIONAL BOLLINGER BANDS
+// =====================================
+
+plot(showBB ? bbUpper : na, "BB Upper", color=color.blue)
+plot(showBB ? bbBasis : na, "BB Middle", color=color.gray)
+plot(showBB ? bbLower : na, "BB Lower", color=color.blue)
+
+// =====================================
+// ALERTS
+// =====================================
+
+alertcondition(buySignal, title="BUY Signal",
+     message="BB_CCI_CrossOver EURUSD BUY")
+
+alertcondition(sellSignal, title="SELL Signal",
+     message="BB_CCI_CrossOver EURUSD SELL")
+
